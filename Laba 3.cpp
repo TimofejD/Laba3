@@ -14,43 +14,73 @@ static float scale = 0.0f;
 using namespace std;
 
 static const char* pVS = "                                                      \n\
-    #version 410                                                                   \n\
+     #version 330                                                                   \n\
     layout (location = 0) in vec3 pos;                                             \n\
     layout (location = 1) in vec2 tex;                                             \n\
+    layout (location = 2) in vec3 norm;                                            \n\
+    uniform mat4 gWVP;                                                             \n\
     uniform mat4 gWorld;                                                           \n\
     out vec2 tex0;                                                                 \n\
+    out vec3 norm0;                                                                \n\
     void main()                                                                    \n\
     {                                                                              \n\
-        gl_Position = gWorld * vec4(pos, 1.0);                                     \n\
+        gl_Position = gWVP * vec4(pos, 1.0);                                       \n\
         tex0 = tex;                                                                \n\
+        norm0 = (gWorld * vec4(norm, 0.0)).xyz;                                    \n\
     }";
 
 static const char* pFS = "                                                         \n\
     #version 410                                                                    \n\
     in vec2 tex0;                                                                   \n\
+	in vec3 norm0;																	\n\
     struct DirectionalLight                                                         \n\
     {                                                                               \n\
         vec3 Color;                                                                 \n\
         float AmbientIntensity;                                                     \n\
+		vec3 Direction;                                                             \n\
+        float DiffuseIntensity;                                                     \n\
     };                                                                              \n\
     uniform sampler2D gSampler;                                                     \n\
     uniform DirectionalLight gDirectionalLight;                                     \n\
     out vec4 fragcolor;                                                             \n\
     void main()                                                                     \n\
     {                                                                               \n\
-        fragcolor = texture2D(gSampler, tex0.xy)*                                   \n\
-        vec4(gDirectionalLight.Color, 1.0f) *                                       \n\
-        gDirectionalLight.AmbientIntensity;											\n\
+        vec4 AmbientColor = vec4(gDirectionalLight.Color, 1.0f) *                   \n\
+                        gDirectionalLight.AmbientIntensity;                         \n\
+                                                                                    \n\
+        float DiffuseFactor = dot(normalize(norm0), -gDirectionalLight.Direction);  \n\
+                                                                                    \n\
+        vec4 DiffuseColor;                                                          \n\
+                                                                                    \n\
+        if (DiffuseFactor > 0){                                                     \n\
+            DiffuseColor = vec4(gDirectionalLight.Color, 1.0f) *                    \n\
+                       gDirectionalLight.DiffuseIntensity *                         \n\
+                       DiffuseFactor;                                               \n\
+        }                                                                           \n\
+        else{                                                                       \n\
+            DiffuseColor = vec4(0,0,0,0);                                           \n\
+        }                                                                           \n\
+                                                                                    \n\
+        fragcolor = texture2D(gSampler, tex0.xy) *                             \n\
+                    (AmbientColor + DiffuseColor);                                  \n\
     }";
 
 struct vertex {
-	glm::vec3 fst;
-	glm::vec2 snd;
-
+	glm::vec3 m_pos;
+	glm::vec2 m_tex;
+	glm::vec3 m_norm;
 	vertex(glm::vec3 inp1, glm::vec2 inp2) {
-		fst = inp1;
-		snd = inp2;
+		m_pos = inp1;
+		m_tex = inp2;
+		m_norm = glm::vec3(0.0f, 0.0f, 0.0f);
 	}
+};
+struct DirectionLight
+{
+	glm::vec3 Color;
+	float AmbientIntensity;
+	glm::vec3 Direction;
+	float DiffuseIntensity;
 };
 
 glm::mat4x4 RotMat(float RotateX, float RotateY, float RotateZ)
@@ -113,7 +143,7 @@ public:
 		m_camera.Up = Up;
 	}
 
-	const glm::mat4x4* GetTrans()
+	const glm::mat4x4* GetTransVertex()
 	{
 		glm::mat4x4 TranslationTrans(
 			1.0f, 0.0f, 0.0f, 0.0f,
@@ -130,8 +160,21 @@ public:
 		glm::mat4x4 CamRotation = InitCameraTransform(m_camera.Target, m_camera.Up);
 		glm::mat4x4 CamMove = InitCameraTranslation(m_camera.Pos.x, m_camera.Pos.y, m_camera.Pos.z);
 
-		m_transformation = TranslationTrans * RotateTrans * ScaleTrans * CamMove * CamRotation * ProjectionMatrix;
-		return &m_transformation;
+		//m_transformation = TranslationTrans * RotateTrans * ScaleTrans * CamMove * CamRotation * ProjectionMatrix;
+		WVP = TranslationTrans * RotateTrans * ScaleTrans;
+
+		return &WVP;
+	}
+	const glm::mat4x4* GetTransWorld()
+	{
+		GetTransVertex();
+		glm::mat4x4 ProjectionMatrix = InitPerspectiveProj();
+		glm::mat4x4 CamRotation = InitCameraTransform(m_camera.Target, m_camera.Up);
+		glm::mat4x4 CamMove = InitCameraTranslation(m_camera.Pos.x, m_camera.Pos.y, m_camera.Pos.z);
+
+		World = WVP * CamMove * CamRotation * ProjectionMatrix;
+
+		return &World;
 	}
 	glm::mat4x4 InitPerspectiveProj() const
 	{
@@ -195,6 +238,15 @@ public:
 			0.0f, 0.0f, 0.0f, 1.0f);
 		return (cammov);
 	}
+	glm::mat4x4 InitEdm()
+	{
+		glm::mat4x4 edm(
+			1.0f, 0.0f, 0.0f, 0.0f,
+			0.0f, 1.0f, 0.0f, 0.0f,
+			0.0f, 0.0f, 1.0f, 0.0f,
+			0.0f, 0.0f, 0.0f, 1.0f);
+		return edm;
+	}
 private:
 	glm::vec3 m_scale;
 	glm::vec3 m_worldPos;
@@ -202,6 +254,8 @@ private:
 	glm::mat4x4 m_transformation;
 	glm::mat4x4 camera_move;
 	glm::mat4x4 camera_rotate;
+	glm::mat4x4 WVP = InitEdm();
+	glm::mat4x4 World = InitEdm();
 	struct {
 		float FOV;
 		float Width;
@@ -358,11 +412,6 @@ private:
 	ShaderObjList m_shaderObjList;
 };
 
-struct DirectionLight
-{
-	glm::vec3 Color;
-	float AmbientIntensity;
-};
 class LightingTechnique : public Technique {
 public:
 	LightingTechnique() {};
@@ -373,33 +422,45 @@ public:
 		if (!AddShader(GL_FRAGMENT_SHADER, pFS)) return false;
 		if (!Finalize())  return false;
 
+		gWVPLocation = GetUniformLocation("gWVP");
 		gWorldLocation = GetUniformLocation("gWorld");
 		samplerLocation = GetUniformLocation("gSampler");
-		dirLightColorLocation = GetUniformLocation("gDirectionalLight.Color");
-		dirLightAmbientIntensityLocation = GetUniformLocation("gDirectionalLight.AmbientIntensity");
-
-		if (dirLightAmbientIntensityLocation == 0xFFFFFFFF || gWorldLocation == 0xFFFFFFFF || samplerLocation == 0xFFFFFFFF || dirLightColorLocation == 0xFFFFFFFF)  return false;
+		LightColor = GetUniformLocation("gDirectionalLight.Color");
+		LightAmbientIntensity = GetUniformLocation("gDirectionalLight.AmbientIntensity");
+		LightDirection = GetUniformLocation("gDirectionalLight.Direction");
+		LightDiffuseIntensity = GetUniformLocation("gDirectionalLight.DiffuseIntensity");
+		if (LightAmbientIntensity == 0xFFFFFFFF || gWorldLocation == 0xFFFFFFFF || samplerLocation == 0xFFFFFFFF || LightColor == 0xFFFFFFFF || LightDirection == 0xFFFFFFFF || LightDiffuseIntensity == 0xFFFFFFFF)  return false;
 
 		return true;
 	};
 
-	void SetgWorld(const glm::mat4* gWorld) {
-		glUniformMatrix4fv(gWorldLocation, 1, GL_TRUE, (const GLfloat*)gWorld);
+	void SetgWVP(const glm::mat4* gWorld) {
+		glUniformMatrix4fv(gWVPLocation, 1, GL_TRUE, (const GLfloat*)gWorld);
 	};
-
+	void SetWorld(const glm::mat4* World)
+	{
+		glUniformMatrix4fv(gWorldLocation, 1, GL_TRUE, (const GLfloat*)World);
+	}
 	void SetTextureUnit(unsigned int unit) {
 		glUniform1i(samplerLocation, unit);
 	};
 
 	void SetDirectionalLight(const DirectionLight& Light) {
-		glUniform3f(dirLightColorLocation, Light.Color.x, Light.Color.y, Light.Color.z);
-		glUniform1f(dirLightAmbientIntensityLocation, Light.AmbientIntensity);
+		glUniform3f(LightColor, Light.Color.x, Light.Color.y, Light.Color.z);
+		glUniform1f(LightAmbientIntensity, Light.AmbientIntensity);
+		glm::vec3 Direction = Light.Direction;
+		normalize(Direction);
+		glUniform3f(LightDirection, Direction.x, Direction.y, Direction.z);
+		glUniform1f(LightDiffuseIntensity, Light.DiffuseIntensity);
 	};
 private:
+	GLuint gWVPLocation;
 	GLuint gWorldLocation;
 	GLuint samplerLocation;
-	GLuint dirLightColorLocation;
-	GLuint dirLightAmbientIntensityLocation;
+	GLuint LightColor;
+	GLuint LightAmbientIntensity;
+	GLuint LightDirection;
+	GLuint LightDiffuseIntensity;
 };
 
 class ICallbacks
@@ -467,18 +528,39 @@ private:
 		vertex(glm::vec3(0.3, -0.2, -0.5),glm::vec2(1,0)),
 		vertex(glm::vec3(0, 0.4, 0),glm::vec2(0.5,1)),
 		};
-		glGenBuffers(1, &VBO);
-		glBindBuffer(GL_ARRAY_BUFFER, VBO);
-		glBufferData(GL_ARRAY_BUFFER, sizeof(Vertices), Vertices, GL_STATIC_DRAW);
+		
 
 		unsigned int Indices[] = { 0, 3, 1,
 							   1, 3, 2,
 							   2, 3, 0,
 							   0, 2, 1 };
+		CalcNorm(Indices, 12, Vertices, 4);
+
+		glGenBuffers(1, &VBO);
+		glBindBuffer(GL_ARRAY_BUFFER, VBO);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(Vertices), Vertices, GL_STATIC_DRAW);
 
 		glGenBuffers(1, &IBO);
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IBO);
 		glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(Indices), Indices, GL_STATIC_DRAW);
+	}
+	void CalcNorm(const unsigned int* indices, unsigned int indcount, vertex* vertices, unsigned int vertcount) {
+		for (unsigned int i = 0; i < indcount; i += 3) {
+			unsigned int Index0 = indices[i];
+			unsigned int Index1 = indices[i + 1];
+			unsigned int Index2 = indices[i + 2];
+			glm::vec3 v1 = vertices[Index1].m_pos - vertices[Index0].m_pos;
+			glm::vec3 v2 = vertices[Index2].m_pos - vertices[Index0].m_pos;
+			glm::vec3 norm = cross(v1, v2);
+			normalize(norm);
+
+			vertices[Index0].m_norm += norm;
+			vertices[Index1].m_norm += norm;
+			vertices[Index2].m_norm += norm;
+		}
+		for (unsigned int i = 0; i < vertcount; i++) {
+			normalize(vertices[i].m_norm);
+		}
 	}
 public:
 	Main()
@@ -487,6 +569,8 @@ public:
 		light = NULL;
 		dirLight.Color = glm::vec3(1.0f, 1.0f, 1.0f);
 		dirLight.AmbientIntensity = 0.5f;
+		dirLight.DiffuseIntensity = 0.75f;
+		dirLight.Direction = glm::vec3(1.0f, 0.0, 0.0);
 	}
 	~Main() {
 		delete light;
@@ -523,7 +607,7 @@ public:
 		Pipeline p;
 		//p.Scale(sinf(scale * 0.1f), sinf(scale * 0.1f), sinf(scale * 0.1f));
 		//p.WorldPos(0.0f, 0.0f, sinf(scale));
-		p.Rotate(sinf(scale) * 2, 0.0f, sinf(scale));
+		p.Rotate(0.0f, sinf(scale), 0.0f);
 		p.SetPerspectiveProj(30.0f, GLUT_WINDOW_WIDTH, GLUT_WINDOW_HEIGHT, 1.0f, 100.0f);
 
 		glm::vec3 CameraPos(0.0f, 0.0f, -3.0f);
@@ -531,16 +615,18 @@ public:
 		glm::vec3 CameraUp(0.0f, 1.0f, 0.0f);
 		p.SetCamera(CameraPos, CameraTarget, CameraUp);
 
-		//glUniformMatrix4fv(gWorldLocation, 1, GL_TRUE, (const GLfloat*)p.GetTrans());
-		light->SetgWorld(p.GetTrans());
+		light->SetgWVP(p.GetTransVertex());
+		light->SetWorld(p.GetTransWorld());
 		light->SetDirectionalLight(dirLight);
 
 		glEnableVertexAttribArray(0);
 		glEnableVertexAttribArray(1);
+		glEnableVertexAttribArray(2);
 		glBindBuffer(GL_ARRAY_BUFFER, VBO);
 
 		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), 0);
 		glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(vertex), (const GLvoid*)12);
+		glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), (const GLvoid*)20);
 
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IBO);
 		pTexture->Bind(GL_TEXTURE0);
@@ -549,6 +635,7 @@ public:
 		glDrawElements(GL_TRIANGLES, 12, GL_UNSIGNED_INT, 0);
 		glDisableVertexAttribArray(0);
 		glDisableVertexAttribArray(1);
+		glDisableVertexAttribArray(2);
 
 		glutSwapBuffers(); // меняем фоновый буфер и буфер кадра местами
 	}
@@ -569,6 +656,14 @@ public:
 
 		case 's':
 			dirLight.AmbientIntensity -= 0.05f;
+			break;
+
+		case 'z':
+			dirLight.DiffuseIntensity += 0.05f;
+			break;
+
+		case 'x':
+			dirLight.DiffuseIntensity -= 0.05f;
 			break;
 		}
 	}
