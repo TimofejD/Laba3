@@ -92,10 +92,15 @@ C:\dev\vcpkg\installed\x86-windows\include\Magick++\STL.h(1806,22): warning C425
 C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.28.29333\include\xstring(4648): message : см. объявление "std::basic_string<char,std::char_traits<char>,std::allocator<char>>"
 C:\dev\vcpkg\installed\x86-windows\include\Magick++\STL.h(1819,25): warning C4251: Magick::x11DisplayImage::_display: class "std::basic_string<char,std::char_traits<char>,std::allocator<char>>" должен иметь dll-интерфейс для использования клиентами class "Magick::x11DisplayImage"
 C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.28.29333\include\xstring(4648): message : см. объявление "std::basic_string<char,std::char_traits<char>,std::allocator<char>>"
-C:\Users\Tommi\source\repos\Laba 3\Laba 3\Laba 3.cpp(305,45): warning C4244: аргумент: преобразование "genType" в "float", возможна потеря данных
+C:\Users\Tommi\source\repos\Laba 3\Laba 3\Laba 3.cpp(164,34): warning C4244: аргумент: преобразование "genType" в "float", возможна потеря данных
           with
           [
               genType=double
           ]
-C:\Users\Tommi\source\repos\Laba 3\Laba 3\Laba 3.cpp(416,84): warning C4244: аргумент: преобразование "double" в "GLint", возможна потеря данных
+C:\Users\Tommi\source\repos\Laba 3\Laba 3\Laba 3.cpp(170,34): warning C4244: =: преобразование "double" в "T", возможна потеря данных
+          with
+          [
+              T=float
+          ]
+C:\Users\Tommi\source\repos\Laba 3\Laba 3\Laba 3.cpp(267,84): warning C4244: аргумент: преобразование "double" в "GLint", возможна потеря данных
   Laba 3.vcxproj -> C:\Users\Tommi\source\repos\Laba 3\Debug\Laba 3.exe
